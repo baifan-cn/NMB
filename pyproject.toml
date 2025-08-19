@@ -1,0 +1,38 @@
+[project]
+name = "nmb"
+version = "0.1.0"
+description = "新闻杂志管理系统后端"
+authors = [{ name = "NMB Team" }]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "SQLAlchemy>=2.0",
+  "aiomysql>=0.2",
+  "pymysql>=1.1",
+  "redis>=5.0",
+  "elasticsearch>=8.13",
+  "python-jose[cryptography]>=3.3",
+  "pydantic-settings>=2.4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "pytest-asyncio>=0.23",
+  "httpx>=0.27",
+  "black>=24.3",
+  "isort>=5.13",
+  "mypy>=1.10",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
