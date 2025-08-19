@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     FILE_CRYPT_MASTER_KEY: str = "change-me-please"
     TEMP_URL_EXPIRES_SECONDS: int = 3600
 
+    # Login throttle & lockout
+    LOGIN_FAIL_LIMIT: int = 5
+    LOGIN_LOCK_MINUTES: int = 15
+    LOGIN_FAIL_WINDOW_SECONDS: int = 15 * 60
+
 
 @lru_cache()
 def get_settings() -> Settings:

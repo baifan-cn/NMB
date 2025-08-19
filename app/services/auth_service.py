@@ -22,8 +22,23 @@ class AuthService:
         user = result.scalar_one_or_none()
         if user is None:
             return None
-        if not verify_password(password, user.password_hash):
+        # Lockout check
+        now = datetime.now(timezone.utc)
+        if user.locked_until and user.locked_until > now:
             return None
+        if not verify_password(password, user.password_hash):
+            # Increment failed attempts and enforce lock if limit exceeded
+            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+            if user.failed_login_attempts >= settings.LOGIN_FAIL_LIMIT:
+                user.locked_until = now + timedelta(minutes=settings.LOGIN_LOCK_MINUTES)
+                user.failed_login_attempts = 0
+            await db.flush()
+            return None
+        # Success: reset counters and update last_login_at
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        user.last_login_at = now
+        await db.flush()
         return user
 
     @staticmethod

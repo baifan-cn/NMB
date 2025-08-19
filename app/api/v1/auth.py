@@ -38,6 +38,7 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)) -> P
 async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)) -> TokenPair:
     user = await AuthService.authenticate(db, payload.username_or_email, payload.password)
     if user is None:
+        # do not reveal lock or existence; generic response
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     access_token, refresh_token, exp = AuthService.create_token_pair(user.id)
     await AuditService.log(db, user_id=user.id, action="login.success")

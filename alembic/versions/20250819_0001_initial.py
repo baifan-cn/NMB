@@ -30,6 +30,8 @@ def upgrade() -> None:
         sa.Column("real_name", sa.String(length=100), nullable=True),
         sa.Column("status", sa.Enum("active", "inactive", "banned", name="user_status"), nullable=False, server_default="active"),
         sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("failed_login_attempts", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("locked_until", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
         sa.UniqueConstraint("username"),
@@ -39,6 +41,7 @@ def upgrade() -> None:
     op.create_index("ix_users_email", "users", ["email"], unique=False)
     op.create_index("idx_users_status", "users", ["status"], unique=False)
     op.create_index("idx_users_last_login_at", "users", ["last_login_at"], unique=False)
+    op.create_index("ix_users_locked_until", "users", ["locked_until"], unique=False)
 
     # member_tiers
     op.create_table(

@@ -13,6 +13,7 @@ from app.models.download import Download
 from app.models.payment import Payment
 from app.models.magazine import Magazine
 from app.services.payment_service import PaymentService
+from sqlalchemy import update
 
 
 class MembershipService:
@@ -139,22 +140,18 @@ class MembershipService:
 
     @staticmethod
     async def expire_due_memberships(db: AsyncSession) -> int:
-        """Mark memberships as expired when end_date < today and status == active.
-
-        Returns number of rows affected (best effort via select-loop due to ORM).
-        """
+        """Mark memberships as expired when end_date < today and status == active."""
         today = date.today()
-        stmt = select(UserMembership).where(
-            UserMembership.status == "active",
-            UserMembership.end_date < today,
+        # Bulk update for efficiency
+        stmt = (
+            update(UserMembership)
+            .where(UserMembership.status == "active", UserMembership.end_date < today)
+            .values(status="expired")
         )
         result = await db.execute(stmt)
-        to_expire = list(result.scalars().all())
-        for m in to_expire:
-            m.status = "expired"
-        if to_expire:
-            await db.commit()
-        return len(to_expire)
+        await db.commit()
+        rowcount = result.rowcount if result.rowcount is not None else 0
+        return rowcount
 
     @staticmethod
     async def compute_remaining_downloads(db: AsyncSession, user_id: int, tier: MemberTier) -> Optional[int]:
