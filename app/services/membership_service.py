@@ -12,6 +12,7 @@ from app.models.user_membership import UserMembership
 from app.models.download import Download
 from app.models.payment import Payment
 from app.models.magazine import Magazine
+from app.services.payment_service import PaymentService
 
 
 class MembershipService:

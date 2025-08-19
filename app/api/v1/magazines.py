@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -45,18 +45,6 @@ async def list_magazines(
         order=order,
     )
     return Page(items=[MagazineOut.model_validate(x) for x in items], total=total, page=page, size=size)
-
-
-@router.get("/current-week")
-async def get_current_week(db: AsyncSession = Depends(get_db)) -> Page:
-    items = await get_current_week_magazines(db)
-    return Page(items=[MagazineOut.model_validate(x) for x in items], total=len(items), page=1, size=len(items))
-
-
-@router.get("/categories")
-async def list_categories(db: AsyncSession = Depends(get_db)) -> list[CategoryOut]:
-    tree = await get_active_categories_tree(db)
-    return tree
 
 
 @router.get("/current-week")

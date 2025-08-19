@@ -18,6 +18,9 @@ import urllib.parse
 
 
 class PaymentService:
+    ALIPAY_METHOD_PC = "alipay.trade.page.pay"
+    ALIPAY_METHOD_WAP = "alipay.trade.wap.pay"
+
     @staticmethod
     def verify_alipay_signature(form: dict) -> bool:
         # Implement RSA2 signature verification
@@ -119,3 +122,41 @@ class PaymentService:
         )
         await db.commit()
         return {"ok": True, "activated": True, "membership_id": membership.id}
+
+    @staticmethod
+    def _alipay_sign(params: dict) -> str:
+        # Build string to sign per Alipay spec: sort by key, join with &
+        items = [f"{k}={v}" for k, v in sorted(params.items()) if v is not None]
+        data = "&".join(items)
+        private_key_pem = settings.ALIPAY_APP_PRIVATE_KEY
+        key = RSA.import_key(private_key_pem)
+        signer = PKCS1_v1_5.new(key)
+        digest = SHA256.new(data.encode("utf-8"))
+        signature = signer.sign(digest)
+        return base64.b64encode(signature).decode("utf-8")
+
+    @staticmethod
+    def build_alipay_pc_pay_url(order_id: int, subject: str, amount: float) -> str:
+        import json
+        from urllib.parse import urlencode
+
+        biz_content = {
+            "out_trade_no": str(order_id),
+            "product_code": "FAST_INSTANT_TRADE_PAY",
+            "total_amount": f"{amount:.2f}",
+            "subject": subject,
+        }
+        common = {
+            "app_id": settings.ALIPAY_APP_ID,
+            "method": PaymentService.ALIPAY_METHOD_PC,
+            "charset": "utf-8",
+            "sign_type": settings.ALIPAY_SIGN_TYPE,
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "version": "1.0",
+            "notify_url": settings.ALIPAY_NOTIFY_URL,
+            "return_url": settings.ALIPAY_RETURN_URL,
+            "biz_content": json.dumps(biz_content, separators=(",", ":"), ensure_ascii=False),
+        }
+        sign = PaymentService._alipay_sign(common)
+        params = {**common, "sign": sign}
+        return f"{settings.ALIPAY_GATEWAY}?{urlencode(params)}"

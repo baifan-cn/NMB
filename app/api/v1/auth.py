@@ -107,21 +107,45 @@ async def logout(refresh_token: str | None = None) -> dict:
     return {"message": "Logged out"}
 
 
+def _validate_provider(provider: str) -> None:
+    if provider not in {"wechat", "weibo", "douyin"}:
+        raise HTTPException(status_code=400, detail="Unsupported provider")
+
+
+def _ensure_provider_config(provider: str) -> None:
+    cfg = settings
+    if provider == "wechat" and (not cfg.WECHAT_CLIENT_ID or not cfg.WECHAT_CLIENT_SECRET or not cfg.WECHAT_REDIRECT_URI):
+        raise HTTPException(status_code=400, detail="WeChat OAuth not configured")
+    if provider == "weibo" and (not cfg.WEIBO_CLIENT_ID or not cfg.WEIBO_CLIENT_SECRET or not cfg.WEIBO_REDIRECT_URI):
+        raise HTTPException(status_code=400, detail="Weibo OAuth not configured")
+    if provider == "douyin" and (not cfg.DOUYIN_CLIENT_KEY or not cfg.DOUYIN_CLIENT_SECRET or not cfg.DOUYIN_REDIRECT_URI):
+        raise HTTPException(status_code=400, detail="Douyin OAuth not configured")
+
+
 @router.get("/oauth/{provider}/authorize")
 async def oauth_authorize(provider: str) -> dict:
+    _validate_provider(provider)
+    _ensure_provider_config(provider)
     auth = await oauth_service.authorize_url(provider)  # type: ignore[arg-type]
     return {"authorize_url": auth.url, "state": auth.state}
 
 
 @router.get("/oauth/{provider}/callback")
 async def oauth_callback(provider: str, code: str, state: str, authorization: str | None = None, db: AsyncSession = Depends(get_db)) -> dict:
+    _validate_provider(provider)
+    _ensure_provider_config(provider)
     current_user_id: int | None = None
     if authorization and authorization.lower().startswith("bearer "):
         try:
             current_user_id = int(_get_current_user_from_token(authorization.split()[1]))
         except Exception:
             current_user_id = None
-    user, _ = await oauth_service.handle_callback(db, provider, code, state, current_user_id)  # type: ignore[arg-type]
+    try:
+        user, _ = await oauth_service.handle_callback(db, provider, code, state, current_user_id)  # type: ignore[arg-type]
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="OAuth callback failed")
     access_token, refresh_token, exp = AuthService.create_token_pair(user.id)
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "expires_in": exp}
 

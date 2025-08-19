@@ -13,6 +13,8 @@ from app.schemas.membership import (
     UpgradeResponse,
 )
 from jose import jwt, JWTError
+from app.services.payment_service import PaymentService
+from app.models.member_tier import MemberTier
 
 router = APIRouter()
 
@@ -74,6 +76,8 @@ async def upgrade_membership(payload: UpgradeRequest, authorization: str, db: As
         await db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    # Placeholder pay url. Integrate with payment gateway later.
-    pay_url = f"https://example.com/pay/{payment.id}"
+    # Build Alipay page pay URL
+    tier = await db.get(MemberTier, payload.tier_id)
+    subject = f"NMB会员-{tier.name}-{payload.billing_cycle}"
+    pay_url = PaymentService.build_alipay_pc_pay_url(payment.id, subject, float(payment.amount))
     return UpgradeResponse(payment_id=payment.id, pay_url=pay_url)
