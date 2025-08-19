@@ -21,7 +21,7 @@ uv run pytest -q
 ## 环境变量
 
 参考 `app/core/config.py` 中的 `Settings`，可在 `.env` 文件设置：
-- `DATABASE_URL`（默认：`mysql+pymysql://user:pass@localhost:3306/magazine_db`）
+- `DATABASE_URL`（默认：`sqlite+aiosqlite:///./dev.db`）
 - `REDIS_URL`
 - `ELASTICSEARCH_URL`
 - `JWT_SECRET_KEY`
@@ -66,3 +66,13 @@ alembic/
   env.py
   versions/
 ```
+
+## 数据库切换
+
+支持多数据库异步驱动，`DATABASE_URL` 会被自动标准化：
+
+- SQLite（本地开发默认）：`sqlite+aiosqlite:///./dev.db`
+- MySQL（生产常用）：`mysql+aiomysql://user:pass@host:3306/dbname`
+- PostgreSQL：`postgresql+asyncpg://user:pass@host:5432/dbname`
+
+无需修改代码，仅调整环境变量即可切换。

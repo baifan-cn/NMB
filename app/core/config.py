@@ -10,18 +10,33 @@ class Settings(BaseSettings):
 
     API_V1_PREFIX: str = "/api/v1"
 
-    DATABASE_URL: str = "mysql+pymysql://user:pass@localhost:3306/magazine_db"
+    # 默认本地开发使用 SQLite（异步驱动 aiosqlite），生产/测试可通过环境变量切换到 MySQL
+    DATABASE_URL: str = "sqlite+aiosqlite:///./dev.db"
     REDIS_URL: str = "redis://localhost:6379/0"
     ELASTICSEARCH_URL: str = "http://localhost:9200"
 
     JWT_SECRET_KEY: str = "change-me"
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 14
+    JWT_ISSUER: str = "nmb-api"
+    JWT_AUDIENCE: str = "nmb-clients"
+    PASSWORD_HASH_SCHEME: str = "argon2"
+
+    AUTO_CREATE_TABLES: bool = True  # dev convenience
+
+    # Storage configuration
+    STORAGE_BACKEND: str = "local"  # options: 'oss' | 'local'
+    LOCAL_STORAGE_DIR: str = "storage"
 
     OSS_BUCKET: str = ""
     OSS_ENDPOINT: str = ""
     OSS_ACCESS_KEY_ID: str = ""
     OSS_ACCESS_KEY_SECRET: str = ""
+
+    # File encryption
+    FILE_CRYPT_MASTER_KEY: str = "change-me-please"
+    TEMP_URL_EXPIRES_SECONDS: int = 3600
 
 
 @lru_cache()

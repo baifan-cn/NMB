@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Enum, String
+from sqlalchemy import BigInteger, DateTime, Enum, String, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -27,3 +27,8 @@ class User(Base):
     )
 
     memberships = relationship("UserMembership", back_populates="user")
+
+    __table_args__ = (
+        Index("idx_users_status", "status"),
+        Index("idx_users_last_login_at", "last_login_at"),
+    )
