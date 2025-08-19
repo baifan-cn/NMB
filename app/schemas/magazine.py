@@ -47,3 +47,23 @@ class MagazineOut(MagazineBase):
     download_count: int
     created_at: datetime
     updated_at: datetime | None = None
+
+
+class MagazineCreate(BaseModel):
+    title: str
+    issue_number: str
+    publish_date: date
+    description: str | None = None
+    cover_image_url: str | None = None
+    is_sensitive: bool = False
+    is_published: bool = False
+
+
+class MagazineUpdate(BaseModel):
+    title: str | None = None
+    issue_number: str | None = None
+    publish_date: date | None = None
+    description: str | None = None
+    cover_image_url: str | None = None
+    is_sensitive: bool | None = None
+    is_published: bool | None = None

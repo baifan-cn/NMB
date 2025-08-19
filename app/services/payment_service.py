@@ -9,14 +9,40 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.payment import Payment
 from app.models.member_tier import MemberTier
 from app.services.membership_service import MembershipService
+from app.core.config import settings
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.Hash import SHA256
+from Crypto.PublicKey import RSA
+import base64
+import urllib.parse
 
 
 class PaymentService:
     @staticmethod
     def verify_alipay_signature(form: dict) -> bool:
-        # TODO: Implement RSA2 verification with Alipay public key from settings
-        # For now, accept all callbacks as valid in dev
-        return True
+        # Implement RSA2 signature verification
+        try:
+            sign = form.get("sign")
+            sign_type = form.get("sign_type", settings.ALIPAY_SIGN_TYPE)
+            if not sign:
+                return False
+            # Exclude sign and sign_type, sort by key
+            params = {k: v for k, v in form.items() if k not in ("sign", "sign_type") and v is not None}
+            unsigned_items = [f"{k}={v}" for k, v in sorted(params.items())]
+            unsigned_string = "&".join(unsigned_items)
+            # URL decode once as Alipay posts encoded values
+            unsigned_string = urllib.parse.unquote_plus(unsigned_string)
+            public_key_pem = settings.ALIPAY_PUBLIC_KEY
+            if not public_key_pem:
+                # In dev, allow missing key
+                return True
+            key = RSA.import_key(public_key_pem)
+            h = SHA256.new(unsigned_string.encode("utf-8"))
+            verifier = PKCS1_v1_5.new(key)
+            signature = base64.b64decode(sign)
+            return verifier.verify(h, signature)
+        except Exception:
+            return False
 
     @staticmethod
     def _determine_billing_cycle(tier: MemberTier, amount: float) -> Optional[str]:
@@ -36,6 +62,9 @@ class PaymentService:
         trade_no = form.get("trade_no")  # alipay transaction id
         total_amount_str = form.get("total_amount")
         gmt_payment = form.get("gmt_payment")
+        # Verify signature
+        if not PaymentService.verify_alipay_signature(form):
+            return {"ok": False, "reason": "invalid signature"}
 
         if not out_trade_no:
             return {"ok": False, "reason": "missing out_trade_no"}

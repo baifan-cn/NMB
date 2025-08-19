@@ -7,6 +7,8 @@ from app.services.auth_service import AuthService
 from app.services.oauth_service import OAuthService
 from app.utils.password import verify_password, hash_password
 from app.models.user import User
+from app.models.social_account import SocialAccount
+from sqlalchemy import select, delete
 from app.utils.security import create_access_token
 from app.core.config import settings
 from jose import jwt, JWTError
@@ -126,5 +128,32 @@ async def oauth_callback(provider: str, code: str, state: str, authorization: st
 
 @router.delete("/oauth/{provider}")
 async def oauth_unbind(provider: str, authorization: str, db: AsyncSession = Depends(get_db)) -> dict:
-    # TODO: implement unbind by clearing related SocialAccount for current user
-    return {"message": "Unbind not implemented yet"}
+    if not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    user_id = int(_get_current_user_from_token(authorization.split()[1]))
+    # Ensure binding exists
+    stmt = select(SocialAccount).where(
+        (SocialAccount.provider == provider) & (SocialAccount.user_id == user_id)
+    )
+    result = await db.execute(stmt)
+    social = result.scalar_one_or_none()
+    if social is None:
+        raise HTTPException(status_code=404, detail="Binding not found")
+    await db.execute(
+        delete(SocialAccount).where(
+            (SocialAccount.provider == provider) & (SocialAccount.user_id == user_id)
+        )
+    )
+    await db.commit()
+    return {"message": "Unbound"}
+
+
+@router.get("/oauth/bindings")
+async def oauth_bindings(authorization: str, db: AsyncSession = Depends(get_db)) -> dict:
+    if not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    user_id = int(_get_current_user_from_token(authorization.split()[1]))
+    stmt = select(SocialAccount.provider).where(SocialAccount.user_id == user_id)
+    result = await db.execute(stmt)
+    providers = [row[0] for row in result.fetchall()]
+    return {"providers": providers}

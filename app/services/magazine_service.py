@@ -6,6 +6,7 @@ from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.magazine import Magazine
+from app.schemas.magazine import MagazineCreate, MagazineUpdate
 
 
 async def query_magazines(
@@ -62,3 +63,39 @@ async def get_current_week_magazines(db: AsyncSession) -> list[Magazine]:
     )
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def create_magazine(db: AsyncSession, payload: MagazineCreate) -> Magazine:
+    magazine = Magazine(
+        title=payload.title,
+        issue_number=payload.issue_number,
+        publish_date=payload.publish_date,
+        description=payload.description,
+        cover_image_url=payload.cover_image_url,
+        is_sensitive=payload.is_sensitive,
+        is_published=payload.is_published,
+        file_path="",
+    )
+    db.add(magazine)
+    await db.flush()
+    return magazine
+
+
+async def update_magazine(db: AsyncSession, magazine_id: int, payload: MagazineUpdate) -> Magazine | None:
+    magazine = await get_magazine_by_id(db, magazine_id)
+    if magazine is None:
+        return None
+    for field in (
+        "title",
+        "issue_number",
+        "publish_date",
+        "description",
+        "cover_image_url",
+        "is_sensitive",
+        "is_published",
+    ):
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(magazine, field, value)
+    await db.flush()
+    return magazine

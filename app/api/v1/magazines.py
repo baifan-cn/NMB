@@ -7,11 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.schemas.common import Page
-from app.schemas.magazine import MagazineOut
+from app.schemas.magazine import MagazineCreate, MagazineOut, MagazineUpdate
 from app.services.magazine_service import (
     get_current_week_magazines,
     get_magazine_by_id,
     query_magazines,
+    create_magazine,
+    update_magazine,
 )
 from app.schemas.category import CategoryOut
 from app.services.category_service import get_active_categories_tree
@@ -57,14 +59,6 @@ async def list_categories(db: AsyncSession = Depends(get_db)) -> list[CategoryOu
     return tree
 
 
-@router.get("/{magazine_id}")
-async def get_magazine_detail(magazine_id: int, db: AsyncSession = Depends(get_db)) -> MagazineOut:
-    magazine = await get_magazine_by_id(db, magazine_id)
-    if not magazine:
-        raise HTTPException(status_code=404, detail="Magazine not found")
-    return MagazineOut.model_validate(magazine)
-
-
 @router.get("/current-week")
 async def get_current_week(db: AsyncSession = Depends(get_db)) -> Page:
     items = await get_current_week_magazines(db)
@@ -75,6 +69,34 @@ async def get_current_week(db: AsyncSession = Depends(get_db)) -> Page:
 async def list_categories(db: AsyncSession = Depends(get_db)) -> list[CategoryOut]:
     tree = await get_active_categories_tree(db)
     return tree
+
+
+@router.get("/{magazine_id}")
+async def get_magazine_detail(magazine_id: int, db: AsyncSession = Depends(get_db)) -> MagazineOut:
+    magazine = await get_magazine_by_id(db, magazine_id)
+    if not magazine:
+        raise HTTPException(status_code=404, detail="Magazine not found")
+    return MagazineOut.model_validate(magazine)
+
+
+@router.post("")
+async def create_magazine_metadata(payload: MagazineCreate, db: AsyncSession = Depends(get_db)) -> MagazineOut:
+    magazine = await create_magazine(db, payload)
+    await db.commit()
+    await db.refresh(magazine)
+    return MagazineOut.model_validate(magazine)
+
+
+@router.put("/{magazine_id}")
+async def update_magazine_metadata(
+    magazine_id: int, payload: MagazineUpdate, db: AsyncSession = Depends(get_db)
+) -> MagazineOut:
+    magazine = await update_magazine(db, magazine_id, payload)
+    if magazine is None:
+        raise HTTPException(status_code=404, detail="Magazine not found")
+    await db.commit()
+    await db.refresh(magazine)
+    return MagazineOut.model_validate(magazine)
 
 
 def _optional_user_id(authorization: str | None) -> int | None:

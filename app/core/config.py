@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     OSS_ACCESS_KEY_ID: str = ""
     OSS_ACCESS_KEY_SECRET: str = ""
 
+    # Alipay configuration
+    ALIPAY_APP_ID: str = ""
+    ALIPAY_PUBLIC_KEY: str = ""  # PEM format including header/footer
+    ALIPAY_SIGN_TYPE: str = "RSA2"  # RSA2 required
+    ALIPAY_APP_PRIVATE_KEY: str = ""  # PEM format including header/footer
+    ALIPAY_GATEWAY: str = "https://openapi.alipay.com/gateway.do"
+    ALIPAY_NOTIFY_URL: str = ""
+    ALIPAY_RETURN_URL: str = ""
+
     # OAuth providers
     WECHAT_CLIENT_ID: str = ""
     WECHAT_CLIENT_SECRET: str = ""
