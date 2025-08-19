@@ -30,6 +30,7 @@ from app.models import (  # noqa: F401,E402
     subscription,
     payment,
     download,
+    social_account,
 )
 
 target_metadata = Base.metadata

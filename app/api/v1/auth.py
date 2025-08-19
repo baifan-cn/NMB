@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.schemas.auth import LoginIn, RegisterIn, TokenPair, ProfileOut, ProfileUpdateIn, ChangePasswordIn
 from app.services.auth_service import AuthService
+from app.services.oauth_service import OAuthService
 from app.utils.password import verify_password, hash_password
 from app.models.user import User
 from app.utils.security import create_access_token
@@ -11,6 +12,7 @@ from app.core.config import settings
 from jose import jwt, JWTError
 
 router = APIRouter()
+oauth_service = OAuthService()
 
 
 @router.post("/register", response_model=ProfileOut)
@@ -101,3 +103,28 @@ async def change_password(payload: ChangePasswordIn, authorization: str, db: Asy
 async def logout(refresh_token: str | None = None) -> dict:
     # Placeholder: In future, store refresh token jti in blacklist/rotate tokens
     return {"message": "Logged out"}
+
+
+@router.get("/oauth/{provider}/authorize")
+async def oauth_authorize(provider: str) -> dict:
+    auth = await oauth_service.authorize_url(provider)  # type: ignore[arg-type]
+    return {"authorize_url": auth.url, "state": auth.state}
+
+
+@router.get("/oauth/{provider}/callback")
+async def oauth_callback(provider: str, code: str, state: str, authorization: str | None = None, db: AsyncSession = Depends(get_db)) -> dict:
+    current_user_id: int | None = None
+    if authorization and authorization.lower().startswith("bearer "):
+        try:
+            current_user_id = int(_get_current_user_from_token(authorization.split()[1]))
+        except Exception:
+            current_user_id = None
+    user, _ = await oauth_service.handle_callback(db, provider, code, state, current_user_id)  # type: ignore[arg-type]
+    access_token, refresh_token, exp = AuthService.create_token_pair(user.id)
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "expires_in": exp}
+
+
+@router.delete("/oauth/{provider}")
+async def oauth_unbind(provider: str, authorization: str, db: AsyncSession = Depends(get_db)) -> dict:
+    # TODO: implement unbind by clearing related SocialAccount for current user
+    return {"message": "Unbind not implemented yet"}

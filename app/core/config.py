@@ -34,6 +34,22 @@ class Settings(BaseSettings):
     OSS_ACCESS_KEY_ID: str = ""
     OSS_ACCESS_KEY_SECRET: str = ""
 
+    # OAuth providers
+    WECHAT_CLIENT_ID: str = ""
+    WECHAT_CLIENT_SECRET: str = ""
+    WECHAT_REDIRECT_URI: str = ""
+    WECHAT_SCOPE: str = "snsapi_login"
+
+    WEIBO_CLIENT_ID: str = ""
+    WEIBO_CLIENT_SECRET: str = ""
+    WEIBO_REDIRECT_URI: str = ""
+    WEIBO_SCOPE: str = ""
+
+    DOUYIN_CLIENT_KEY: str = ""
+    DOUYIN_CLIENT_SECRET: str = ""
+    DOUYIN_REDIRECT_URI: str = ""
+    DOUYIN_SCOPE: str = "user_info"
+
     # File encryption
     FILE_CRYPT_MASTER_KEY: str = "change-me-please"
     TEMP_URL_EXPIRES_SECONDS: int = 3600
