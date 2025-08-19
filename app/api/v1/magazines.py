@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -14,6 +15,8 @@ from app.services.magazine_service import (
     query_magazines,
     create_magazine,
     update_magazine,
+    upload_magazine_file,
+    get_decrypted_pdf_bytes,
 )
 from app.schemas.category import CategoryOut
 from app.services.category_service import get_active_categories_tree
@@ -87,6 +90,25 @@ async def update_magazine_metadata(
     return MagazineOut.model_validate(magazine)
 
 
+@router.post("/{magazine_id}/upload")
+async def upload_pdf(
+    magazine_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+) -> MagazineOut:
+    data = await file.read()
+    magazine = await upload_magazine_file(
+        db=db,
+        magazine_id=magazine_id,
+        filename=file.filename or "file.pdf",
+        content_type=file.content_type,
+        data=data,
+    )
+    await db.commit()
+    await db.refresh(magazine)
+    return MagazineOut.model_validate(magazine)
+
+
 def _optional_user_id(authorization: str | None) -> int | None:
     if not authorization:
         return None
@@ -140,8 +162,8 @@ async def view_magazine(magazine_id: int, request: Request, db: AsyncSession = D
     perm = await MembershipService.check_access_permission(db, user_id, magazine)
     if not perm["can_view"]:
         raise HTTPException(status_code=403, detail="No permission to view this magazine")
-    # TODO: replace with real temporary preview URL from OSS
-    return {"can_view": True, "temporary_url": f"https://example.com/preview/{magazine.id}"}
+    # For local backend, return a token-less inline preview via API streaming in future
+    return {"can_view": True}
 
 
 @router.post("/{magazine_id}/download")
@@ -167,5 +189,24 @@ async def download_magazine(magazine_id: int, request: Request, authorization: s
     # Increase download_count for magazine
     magazine.download_count = (magazine.download_count or 0) + 1
     await db.commit()
-    # TODO: replace with real signed download URL from OSS
-    return {"message": "ok", "download_url": f"https://example.com/download/{magazine.id}"}
+    # For local-first, respond with a simple ok and let client call a file endpoint (to be added later)
+    return {"message": "ok"}
+
+
+@router.get("/{magazine_id}/file")
+async def get_magazine_file(magazine_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    # Optional user for view; free users can view current week only
+    authorization = request.headers.get("authorization") or request.headers.get("Authorization")
+    user_id = _optional_user_id(authorization) or 0
+    magazine = await get_magazine_by_id(db, magazine_id)
+    if not magazine:
+        raise HTTPException(status_code=404, detail="Magazine not found")
+    perm = await MembershipService.check_access_permission(db, user_id, magazine)
+    if not perm["can_view"]:
+        raise HTTPException(status_code=403, detail="No permission to access this file")
+    try:
+        data = await get_decrypted_pdf_bytes(db, magazine_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    headers = {"Content-Disposition": f"inline; filename=magazine-{magazine_id}.pdf"}
+    return StreamingResponse(iter([data]), media_type="application/pdf", headers=headers)

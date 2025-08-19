@@ -36,6 +36,7 @@ class UpgradeRequest(BaseModel):
     tier_id: int
     billing_cycle: Literal["monthly", "yearly"]
     payment_method: Literal["alipay", "wechat", "bank_card"]
+    channel: Literal["pc", "wap"] = "pc"
 
 
 class UpgradeResponse(BaseModel):

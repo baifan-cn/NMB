@@ -176,8 +176,23 @@ def upgrade() -> None:
     op.create_index("ix_social_user_id", "social_accounts", ["user_id"], unique=False)
     op.create_index("idx_social_union_id", "social_accounts", ["union_id"], unique=False)
 
+    # audit_logs
+    op.create_table(
+        "audit_logs",
+        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column("user_id", sa.BigInteger(), sa.ForeignKey("users.id"), nullable=True),
+        sa.Column("action", sa.String(length=100), nullable=False),
+        sa.Column("ip", sa.String(length=45), nullable=True),
+        sa.Column("user_agent", sa.String(length=255), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+        sa.Column("meta", sa.JSON(), nullable=True),
+    )
+    op.create_index("ix_audit_logs_user_id", "audit_logs", ["user_id"], unique=False)
+
 
 def downgrade() -> None:
+    op.drop_index("ix_audit_logs_user_id", table_name="audit_logs")
+    op.drop_table("audit_logs")
     op.drop_index("idx_social_union_id", table_name="social_accounts")
     op.drop_index("ix_social_user_id", table_name="social_accounts")
     op.drop_table("social_accounts")

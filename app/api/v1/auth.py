@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from slowapi.util import get_remote_address
+from app.core.rate_limit import limiter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.schemas.auth import LoginIn, RegisterIn, TokenPair, ProfileOut, ProfileUpdateIn, ChangePasswordIn
 from app.services.auth_service import AuthService
 from app.services.oauth_service import OAuthService
+from app.services.audit_service import AuditService
 from app.utils.password import verify_password, hash_password
 from app.models.user import User
 from app.models.social_account import SocialAccount
@@ -31,15 +34,19 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)) -> P
 
 
 @router.post("/login", response_model=TokenPair)
+@limiter.limit("5/minute")
 async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)) -> TokenPair:
     user = await AuthService.authenticate(db, payload.username_or_email, payload.password)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     access_token, refresh_token, exp = AuthService.create_token_pair(user.id)
+    await AuditService.log(db, user_id=user.id, action="login.success")
+    await db.commit()
     return TokenPair(access_token=access_token, refresh_token=refresh_token, expires_in=exp)
 
 
 @router.post("/refresh-token", response_model=TokenPair)
+@limiter.limit("10/minute")
 async def refresh_token(refresh_token: str, db: AsyncSession = Depends(get_db)) -> TokenPair:
     try:
         payload = jwt.decode(
@@ -98,12 +105,15 @@ async def change_password(payload: ChangePasswordIn, authorization: str, db: Asy
         raise HTTPException(status_code=400, detail="Old password incorrect")
     user.password_hash = hash_password(payload.new_password)
     await db.commit()
+    await AuditService.log(db, user_id=user.id, action="password.change")
+    await db.commit()
     return {"message": "Password changed"}
 
 
 @router.post("/logout")
 async def logout(refresh_token: str | None = None) -> dict:
     # Placeholder: In future, store refresh token jti in blacklist/rotate tokens
+    # TODO: add refresh token blacklist
     return {"message": "Logged out"}
 
 
@@ -123,6 +133,7 @@ def _ensure_provider_config(provider: str) -> None:
 
 
 @router.get("/oauth/{provider}/authorize")
+@limiter.limit("20/minute")
 async def oauth_authorize(provider: str) -> dict:
     _validate_provider(provider)
     _ensure_provider_config(provider)
@@ -131,6 +142,7 @@ async def oauth_authorize(provider: str) -> dict:
 
 
 @router.get("/oauth/{provider}/callback")
+@limiter.limit("20/minute")
 async def oauth_callback(provider: str, code: str, state: str, authorization: str | None = None, db: AsyncSession = Depends(get_db)) -> dict:
     _validate_provider(provider)
     _ensure_provider_config(provider)
@@ -147,6 +159,8 @@ async def oauth_callback(provider: str, code: str, state: str, authorization: st
     except Exception:
         raise HTTPException(status_code=400, detail="OAuth callback failed")
     access_token, refresh_token, exp = AuthService.create_token_pair(user.id)
+    await AuditService.log(db, user_id=user.id, action=f"oauth.{provider}.login")
+    await db.commit()
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "expires_in": exp}
 
 
@@ -168,6 +182,7 @@ async def oauth_unbind(provider: str, authorization: str, db: AsyncSession = Dep
             (SocialAccount.provider == provider) & (SocialAccount.user_id == user_id)
         )
     )
+    await AuditService.log(db, user_id=user_id, action=f"oauth.{provider}.unbind")
     await db.commit()
     return {"message": "Unbound"}
 

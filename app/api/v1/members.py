@@ -15,6 +15,7 @@ from app.schemas.membership import (
 from jose import jwt, JWTError
 from app.services.payment_service import PaymentService
 from app.models.member_tier import MemberTier
+from app.models.user_membership import UserMembership
 
 router = APIRouter()
 
@@ -58,6 +59,8 @@ async def get_current_membership(authorization: str, db: AsyncSession = Depends(
 @router.get("/history", response_model=list[MembershipHistoryItem])
 async def get_membership_history(authorization: str, db: AsyncSession = Depends(get_db)) -> list[MembershipHistoryItem]:
     user_id = _require_user_id(authorization)
+    # Expire due before returning history for freshness
+    await MembershipService.expire_due_memberships(db)
     items = await MembershipService.get_membership_history(db, user_id)
     return [MembershipHistoryItem.model_validate(it) for it in items]
 
@@ -76,8 +79,11 @@ async def upgrade_membership(payload: UpgradeRequest, authorization: str, db: As
         await db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    # Build Alipay page pay URL
+    # Build Alipay pay URL (pc or wap)
     tier = await db.get(MemberTier, payload.tier_id)
     subject = f"NMB会员-{tier.name}-{payload.billing_cycle}"
-    pay_url = PaymentService.build_alipay_pc_pay_url(payment.id, subject, float(payment.amount))
+    if payload.channel == "wap":
+        pay_url = PaymentService.build_alipay_wap_pay_url(payment.id, subject, float(payment.amount))
+    else:
+        pay_url = PaymentService.build_alipay_pc_pay_url(payment.id, subject, float(payment.amount))
     return UpgradeResponse(payment_id=payment.id, pay_url=pay_url)

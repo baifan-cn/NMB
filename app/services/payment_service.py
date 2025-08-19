@@ -160,3 +160,29 @@ class PaymentService:
         sign = PaymentService._alipay_sign(common)
         params = {**common, "sign": sign}
         return f"{settings.ALIPAY_GATEWAY}?{urlencode(params)}"
+
+    @staticmethod
+    def build_alipay_wap_pay_url(order_id: int, subject: str, amount: float) -> str:
+        import json
+        from urllib.parse import urlencode
+
+        biz_content = {
+            "out_trade_no": str(order_id),
+            "product_code": "QUICK_WAP_WAY",
+            "total_amount": f"{amount:.2f}",
+            "subject": subject,
+        }
+        common = {
+            "app_id": settings.ALIPAY_APP_ID,
+            "method": PaymentService.ALIPAY_METHOD_WAP,
+            "charset": "utf-8",
+            "sign_type": settings.ALIPAY_SIGN_TYPE,
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "version": "1.0",
+            "notify_url": settings.ALIPAY_NOTIFY_URL,
+            "return_url": settings.ALIPAY_RETURN_URL,
+            "biz_content": json.dumps(biz_content, separators=(",", ":"), ensure_ascii=False),
+        }
+        sign = PaymentService._alipay_sign(common)
+        params = {**common, "sign": sign}
+        return f"{settings.ALIPAY_GATEWAY}?{urlencode(params)}"

@@ -116,6 +116,14 @@ class MembershipService:
             end = start + timedelta(days=365)
         else:
             raise ValueError("Invalid billing cycle")
+        # Cancel overlapping active memberships for the same user (simple approach)
+        existing_stmt = select(UserMembership).where(
+            UserMembership.user_id == user_id,
+            UserMembership.status == "active",
+        )
+        existing_result = await db.execute(existing_stmt)
+        for m in existing_result.scalars().all():
+            m.status = "cancelled"
         membership = UserMembership(
             user_id=user_id,
             tier_id=tier_id,
@@ -128,6 +136,25 @@ class MembershipService:
         db.add(membership)
         await db.flush()
         return membership
+
+    @staticmethod
+    async def expire_due_memberships(db: AsyncSession) -> int:
+        """Mark memberships as expired when end_date < today and status == active.
+
+        Returns number of rows affected (best effort via select-loop due to ORM).
+        """
+        today = date.today()
+        stmt = select(UserMembership).where(
+            UserMembership.status == "active",
+            UserMembership.end_date < today,
+        )
+        result = await db.execute(stmt)
+        to_expire = list(result.scalars().all())
+        for m in to_expire:
+            m.status = "expired"
+        if to_expire:
+            await db.commit()
+        return len(to_expire)
 
     @staticmethod
     async def compute_remaining_downloads(db: AsyncSession, user_id: int, tier: MemberTier) -> Optional[int]:
