@@ -63,6 +63,14 @@ class Settings(BaseSettings):
     FILE_CRYPT_MASTER_KEY: str = "change-me-please"
     TEMP_URL_EXPIRES_SECONDS: int = 3600
 
+    # Email (simple SMTP)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 465
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_SSL: bool = True
+    MAIL_FROM: str = ""
+
     # Login throttle & lockout
     LOGIN_FAIL_LIMIT: int = 5
     LOGIN_LOCK_MINUTES: int = 15

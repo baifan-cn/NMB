@@ -14,6 +14,8 @@ from app.models.payment import Payment
 from app.models.magazine import Magazine
 from app.services.payment_service import PaymentService
 from sqlalchemy import update
+from app.services.email_service import EmailService
+from app.models.user import User
 
 
 class MembershipService:
@@ -152,6 +154,45 @@ class MembershipService:
         await db.commit()
         rowcount = result.rowcount if result.rowcount is not None else 0
         return rowcount
+
+    @staticmethod
+    async def notify_renewal_reminders(db: AsyncSession, days_before: int = 3) -> int:
+        """Send renewal reminder emails for memberships expiring in N days with auto_renew=True.
+
+        Only sends emails; no payment links.
+        Returns number of notifications attempted.
+        """
+        target_date = date.today() + timedelta(days=days_before)
+        stmt = (
+            select(UserMembership)
+            .options(joinedload(UserMembership.tier))
+            .where(
+                UserMembership.status == "active",
+                UserMembership.end_date == target_date,
+                UserMembership.auto_renew == True,
+            )
+        )
+        result = await db.execute(stmt)
+        memberships = list(result.scalars().all())
+        notified = 0
+        for m in memberships:
+            user = await db.get(User, m.user_id)
+            if not user or not user.email:
+                continue
+            subject = "会员即将到期提醒"
+            html = (
+                f"<p>尊敬的 {user.username}，</p>"
+                f"<p>您的会员（{m.tier.name}）将于 {m.end_date} 到期。</p>"
+                f"<p>如需继续享受会员权益，请及时续订。</p>"
+                f"<p>感谢您的使用！</p>"
+            )
+            try:
+                EmailService.send_email(subject=subject, to_emails=[user.email], html=html)
+                notified += 1
+            except Exception:
+                # swallow send errors for now; production should log
+                pass
+        return notified
 
     @staticmethod
     async def compute_remaining_downloads(db: AsyncSession, user_id: int, tier: MemberTier) -> Optional[int]:

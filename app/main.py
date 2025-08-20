@@ -31,11 +31,11 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def on_startup() -> None:
         await init_db()
-        # Fire-and-forget background task: daily membership expiration
+        # Fire-and-forget background tasks: expiration & renewal reminders
         async def expire_loop() -> None:
             while True:
                 try:
-                    # wait until next 3:00 AM UTC-ish
+                    # every 6 hours
                     await asyncio.sleep(60 * 60 * 6)
                     # run once per cycle
                     from app.core.db import async_session_maker
@@ -49,6 +49,23 @@ def create_app() -> FastAPI:
                     pass
 
         asyncio.create_task(expire_loop())
+
+        async def renewal_reminder_loop() -> None:
+            while True:
+                try:
+                    # run daily
+                    await asyncio.sleep(60 * 60 * 24)
+                    from app.core.db import async_session_maker
+                    if async_session_maker is None:
+                        continue
+                    async with async_session_maker() as session:  # type: ignore
+                        assert isinstance(session, AsyncSession)
+                        # send reminders 3 days before expiry
+                        await MembershipService.notify_renewal_reminders(session, days_before=3)
+                except Exception:
+                    pass
+
+        asyncio.create_task(renewal_reminder_loop())
 
     return app
 
